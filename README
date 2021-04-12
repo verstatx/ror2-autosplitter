@@ -1,0 +1,45 @@
+A WIP Risk of Rain 2 Autosplitter/Load Remover for livesplit-core
+adapted from RiskOfRain2.asl.
+
+
+Compiles to WebAssembly using clang (see build.sh).
+Compile-time "#define"s (you have to edit build.sh manually):
+
+ - '-DREMOVE_LOADS': enabled by default.
+   Enables the load-removal feature.
+
+ - '-DV1_0_3_1': disabled by default.
+   Changes some pointer paths to target game version 1.0.3.1
+
+ - '-DDEBUG_OUTPUT': disabled by default.
+   Dumps the internal state to the output log on any state change. Format is
+   old scene name, current scene name, old in_game state, current
+   in_game state, old stage_count, current stage_count
+
+ - '-DPACKED_STRINGS': enabled by default.
+   Changes the way strings are extracted internally. Mostly irrelevant.
+
+ - '-DUSE_WASI_SDK': disabled by default.
+   Used internally to enable headers included in the WASI SDK. Basically
+   useless.
+
+
+Current limitations:
+
+ - Targets game Risk of Rain 2 version 1.0.0.5
+
+ - There is no timer offset on start.
+
+ - Resetting is inconsistent if done too quickly, the transition to the lobby
+   sometimes isn't detected.
+
+ - Version detection is not possible.
+
+ - Loads can be detected, but this uses the old "load2" variable in an older
+   version of the autosplitter.
+
+ - With the current state of autosplitting in livesplit-core, the autosplitter
+   unhooks for around 1 second on each scene transition. Presumably this
+   happens because livesplit-core cannot resolve one of the pointer paths.
+   It is unknown if this affects load removal timings.
+
