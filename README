@@ -30,16 +30,11 @@ Current limitations:
 
  - There is no timer offset on start.
 
- - Resetting is inconsistent if done too quickly, the transition to the lobby
-   sometimes isn't detected.
-
  - Version detection is not possible.
 
  - Loads can be detected, but this uses the old "load2" variable in an older
    version of the autosplitter.
 
- - With the current state of autosplitting in livesplit-core, the autosplitter
-   unhooks for around 1 second on each scene transition. Presumably this
-   happens because livesplit-core cannot resolve one of the pointer paths.
-   It is unknown if this affects load removal timings.
+ - If enabled, debug output will rarely crash the autosplitter if the scene
+   name happens to be corrupt.
 

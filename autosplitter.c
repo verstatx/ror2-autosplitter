@@ -146,17 +146,19 @@ void configure() {
     for (int i = 0; i < SCENE_NAME_LEN; i++) {
         pointer_path_id scene_name_ppid = push_pointer_path("UnityPlayer.dll", 15, U8);
         push_offset(scene_name_ppid, 0x15A95D8);
-        push_offset(scene_name_ppid, 0x48);
+        push_offset(scene_name_ppid, 0x28);
+        push_offset(scene_name_ppid, 0x00);
         push_offset(scene_name_ppid, 0x40 + i);
         scene_name_ppids[i] = scene_name_ppid;
     }
 #else
-    for (int i = 0; i < SCENE_NAME_LEN; i+=8) {
+    for (int i = 0; i < SCENE_NAME_LEN; i+=sizeof(uint64_t)) {
         pointer_path_id scene_name_ppid = push_pointer_path("UnityPlayer.dll", 15, U64);
         push_offset(scene_name_ppid, 0x15A95D8);
-        push_offset(scene_name_ppid, 0x48);
+        push_offset(scene_name_ppid, 0x28);
+        push_offset(scene_name_ppid, 0x00);
         push_offset(scene_name_ppid, 0x40 + i);
-        scene_name_ppids[i / 8] = scene_name_ppid;
+        scene_name_ppids[i / sizeof(uint64_t)] = scene_name_ppid;
     }
 #endif
 
