@@ -110,24 +110,11 @@ void configure() {
     set_tick_rate(120.f);
 
     // Risk of Rain 2 - version 1.0.0 memory locations
-    // String not implemented yet
-    //int id = push_pointer_path("UnityPlayer.dll", 15, String);
-
-    // this pointer path does not work in v1.0.0.5
-    /*
-    fade_ppid = push_pointer_path("UnityPlayer.dll", 15, F32);
-    push_offset(fade_ppid, 0x15637F8);
-    push_offset(fade_ppid, 0x128);
-    push_offset(fade_ppid, 0xD0);
-    push_offset(fade_ppid, 0x18);
-    push_offset(fade_ppid, 0xD0);
-    push_offset(fade_ppid, 0x38);
-    push_offset(fade_ppid, 0x60);
-    push_offset(fade_ppid, 0xC);
-    */
+    // String not implemented in LSO core
+    //scene_name_ppid = push_pointer_path("UnityPlayer.dll", 15, String);
 
     // NOTE: some initial offsets are adjusted due to duplicate /proc/pid/maps file entries
-    // livesplit-core uses the last entry, but the ASL script uses the first.
+    // livesplit-core uses the last entry, but the ASL script expects the first.
     stage_count_ppid = push_pointer_path("mono-2.0-bdwgc.dll", 18, I32);
     push_offset(stage_count_ppid, 0x491DC8 - 0x2AF000);
     push_offset(stage_count_ppid, 0x28);
@@ -184,7 +171,7 @@ void configure() {
  *
  * livesplit-core constantly unhooks whenever a pointer path is incorrect
  * in doing so, any old state is cleared, so it effectively becomes the same
- * as current. In our case, scene_name seems to be the culprit.
+ * as current.
  */
 void update() {
     // Cache OLD state
@@ -279,10 +266,6 @@ bool should_split() {
 /* This logic was modified from the base ASL script
  * should_reset is always called after should_start, so should_start would be
  * called too late to detect the start condition
- *
- * FIXME: This is unreliable when resetting too quickly. Some pointer path
- * becomes invalid for a bit, so the states don't get updated while in the
- * lobby before livesplit-core re-hooks to the process.
  */
 bool should_reset() {
     return (!CURRENT.in_game && OLD.in_game && OLD.stage_count < 4);

@@ -26,14 +26,14 @@ Compile-time "#define"s (you have to edit build.sh manually):
 
 Current limitations:
 
- - Targets game Risk of Rain 2 version 1.0.0.5
+ - Automatic version detection is not possible.
 
  - There is no timer offset on start.
 
- - Version detection is not possible.
-
  - Loads can be detected, but this uses the old "load2" variable in an older
    version of the autosplitter.
+
+ - Some pointer paths differ from the upstream ASL script.
 
  - If enabled, debug output will rarely crash the autosplitter if the scene
    name happens to be corrupt.
