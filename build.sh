@@ -18,4 +18,4 @@ clang --target=wasm32 -nostdlib -Wl,--no-entry -Wl,--allow-undefined \
     -DPACKED_STRINGS \
     -o RoR2-autosplitter.wasm autosplitter.c
     #-DDEBUG_OUTPUT \
-    #-DV1_0_3_1 -o RoR2-autosplitter-v1_0_3_1.wasm autosplitter.c
+    #-DV1_1 -o RoR2-autosplitter-v1_1.wasm autosplitter.c

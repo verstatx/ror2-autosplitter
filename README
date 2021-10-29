@@ -11,8 +11,9 @@ Compile-time "#define"s (you have to edit build.sh manually):
  - '-DBAZAAR_SPLIT': enabled by default.
    Split when exiting bazaar.
 
- - '-DV1_0_3_1': disabled by default.
-   Changes some pointer paths to target game version 1.0.3.1
+ - '-DV1_1': disabled by default.
+   Changes some pointer paths to target game versions after the Anniversary
+   Update.
 
  - '-DDEBUG_OUTPUT': disabled by default.
    Dumps the internal state to the output log on any state change. Format is
@@ -32,9 +33,6 @@ Current limitations:
  - Automatic version detection is not possible.
 
  - There is no timer offset on start.
-
- - Loads can be detected, but this uses the old "load2" variable in an older
-   version of the autosplitter.
 
  - Some pointer paths differ from the upstream ASL script.
 

@@ -15,12 +15,11 @@ static pointer_path_id scene_name_ppids[SCENE_NAME_LEN];
 #else
 static pointer_path_id scene_name_ppids[SCENE_NAME_LEN/sizeof(uint64_t)];
 #endif
-static pointer_path_id fade_ppid;
 static pointer_path_id stage_count_ppid;
 static pointer_path_id in_game_ppid;
 
 #ifdef REMOVE_LOADS
-static pointer_path_id load2_ppid;
+static pointer_path_id fade_ppid;
 #endif
 
 typedef struct {
@@ -28,8 +27,7 @@ typedef struct {
     int32_t stage_count;
     bool in_game;
 #ifdef REMOVE_LOADS
-    //float fade; // TODO: not implemented
-    bool is_loading;
+    float fade;
 #endif
 
     bool is_initialized;
@@ -109,25 +107,15 @@ void configure() {
     set_process_name("Risk of Rain 2.", 15); // "exe" is stripped off for some reason
     set_tick_rate(120.f);
 
-    // Risk of Rain 2 - version 1.0.0 memory locations
-    // String not implemented in LSO core
-    //scene_name_ppid = push_pointer_path("UnityPlayer.dll", 15, String);
+    // Risk of Rain 2 - universal memory locations
 
     // NOTE: some initial offsets are adjusted due to duplicate /proc/pid/maps file entries
     // livesplit-core uses the last entry, but the ASL script expects the first.
-    stage_count_ppid = push_pointer_path("mono-2.0-bdwgc.dll", 18, I32);
-    push_offset(stage_count_ppid, 0x491DC8 - 0x2AF000);
-    push_offset(stage_count_ppid, 0x28);
-    push_offset(stage_count_ppid, 0x50);
-#ifndef V1_0_3_1
-    push_offset(stage_count_ppid, 0x6B0);
-#else
-    push_offset(stage_count_ppid, 0x660);
-#endif
-
-
     in_game_ppid = push_pointer_path("AkSoundEngine.dll", 17, I32);
     push_offset(in_game_ppid, 0x20DC04 - 0x7000);
+
+    // String not implemented in LSO core
+    //scene_name_ppid = push_pointer_path("UnityPlayer.dll", 15, String);
 
 #ifndef PACKED_STRINGS
     for (int i = 0; i < SCENE_NAME_LEN; i++) {
@@ -149,18 +137,31 @@ void configure() {
     }
 #endif
 
+    // Risk of Rain 2 - version dependent memory locations
 #ifdef REMOVE_LOADS
-    load2_ppid = push_pointer_path("mono-2.0-bdwgc.dll", 18, I32);
-    push_offset(load2_ppid, 0x491DC8 - 0x2AF000);
-    push_offset(load2_ppid, 0x58);
-    push_offset(load2_ppid, 0x160);
-    push_offset(load2_ppid, 0x160);
-    push_offset(load2_ppid, 0x160);
-    push_offset(load2_ppid, 0x160);
-    push_offset(load2_ppid, 0x160);
-    push_offset(load2_ppid, 0xBF0);
+    fade_ppid = push_pointer_path("mono-2.0-bdwgc.dll", 18, F32);
+    push_offset(fade_ppid, 0x4940B8 - 0x2AF000);
+    push_offset(fade_ppid, 0x10);
+    push_offset(fade_ppid, 0x1D0);
+    push_offset(fade_ppid, 0x8);
+    push_offset(fade_ppid, 0x4E0);
+# ifndef V1_1
+    push_offset(fade_ppid, 0x1E10);
+# else
+    push_offset(fade_ppid, 0x1E88);
+    push_offset(fade_ppid, 0x108);
+# endif
+    push_offset(fade_ppid, 0xD0);
+    push_offset(fade_ppid, 0x8);
+    push_offset(fade_ppid, 0x60);
+    push_offset(fade_ppid, 0xC);
 #endif
 
+stage_count_ppid = push_pointer_path("mono-2.0-bdwgc.dll", 18, I32);
+    push_offset(stage_count_ppid, 0x491DC8 - 0x2AF000);
+    push_offset(stage_count_ppid, 0x28);
+    push_offset(stage_count_ppid, 0x50);
+    push_offset(stage_count_ppid, 0x6B0);
 }
 
 /* Note: we cannot rely on livesplit-core to track the old state properly
@@ -183,7 +184,7 @@ void update() {
         OLD.stage_count = get_i32(stage_count_ppid, false);
         OLD.in_game = (get_i32(in_game_ppid, false) != 0);
 #ifdef REMOVE_LOADS
-        OLD.is_loading = (get_i32(load2_ppid, false) == 1);
+        OLD.fade = get_f32(fade_ppid, false);
 #endif
     } else {
         for (int i = 0; i < SCENE_NAME_LEN; i++) {
@@ -192,7 +193,7 @@ void update() {
         OLD.stage_count = CURRENT.stage_count;
         OLD.in_game = CURRENT.in_game;
 #ifdef REMOVE_LOADS
-        OLD.is_loading = CURRENT.is_loading;
+        OLD.fade = CURRENT.fade;
 #endif
     }
 
@@ -201,7 +202,7 @@ void update() {
     CURRENT.stage_count = get_i32(stage_count_ppid, true);
     CURRENT.in_game = (get_i32(in_game_ppid, true) != 0);
 #ifdef REMOVE_LOADS
-    CURRENT.is_loading = (get_i32(load2_ppid, true) == 1);
+    CURRENT.fade = get_f32(fade_ppid, true);
 #endif
 
 #ifdef DEBUG_OUTPUT
@@ -209,7 +210,7 @@ void update() {
     if (!str_is_equal(CURRENT.scene_name, OLD.scene_name)
        || CURRENT.in_game != OLD.in_game
        || CURRENT.stage_count != OLD.stage_count
-       || CURRENT.is_loading != OLD.is_loading) {
+       || CURRENT.fade != OLD.fade) {
         print_scene(&OLD);
         print_scene(&CURRENT);
 
@@ -247,7 +248,7 @@ bool should_start() {
 }
 
 bool should_split() {
-    if (CURRENT.stage_count > 1 && CURRENT.stage_count == OLD.stage_count + 1) {
+    if (CURRENT.stage_count >= 1 && CURRENT.stage_count == OLD.stage_count + 1) {
         return true;
     }
 
@@ -277,7 +278,7 @@ bool should_reset() {
 
 bool is_loading() {
 #ifdef REMOVE_LOADS
-    return CURRENT.is_loading;
+    return CURRENT.fade >= OLD.fade && CURRENT.fade != 0;
 #else
     return false;
 #endif
