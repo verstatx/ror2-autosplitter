@@ -8,6 +8,9 @@ Compile-time "#define"s (you have to edit build.sh manually):
  - '-DREMOVE_LOADS': enabled by default.
    Enables the load-removal feature.
 
+ - '-DBAZAAR_SPLIT': enabled by default.
+   Split when exiting bazaar.
+
  - '-DV1_0_3_1': disabled by default.
    Changes some pointer paths to target game version 1.0.3.1
 

@@ -14,6 +14,7 @@ clang --target=wasm32 -nostdlib -Wl,--no-entry -Wl,--allow-undefined \
     -Wl,--export=game_time \
     -O3 \
     -DREMOVE_LOADS \
+    -DBAZAAR_SPLIT \
     -DPACKED_STRINGS \
     -o RoR2-autosplitter.wasm autosplitter.c
     #-DDEBUG_OUTPUT \

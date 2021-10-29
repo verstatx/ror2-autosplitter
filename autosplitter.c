@@ -251,14 +251,18 @@ bool should_split() {
         return true;
     }
 
+#ifdef BAZAAR_SPLIT
     if (!str_is_equal(CURRENT.scene_name, OLD.scene_name)
         && !str_is_equal(CURRENT.scene_name, "splash")
+        && !str_is_equal(CURRENT.scene_name, "intro")
         && !str_is_equal(CURRENT.scene_name, "title")
         && !str_is_equal(CURRENT.scene_name, "lobby")
-        && !str_is_equal(CURRENT.scene_name, "crystalworld"))
+        && !str_is_equal(CURRENT.scene_name, "crystalworld")
+        && !str_is_equal(CURRENT.scene_name, "eclipseworld"))
     {
         return str_is_equal(OLD.scene_name, "bazaar");
     }
+#endif
 
     return false;
 }
