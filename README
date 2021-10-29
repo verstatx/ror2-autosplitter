@@ -32,8 +32,6 @@ Current limitations:
 
  - Automatic version detection is not possible.
 
- - There is no timer offset on start.
-
  - Some pointer paths differ from the upstream ASL script.
 
  - If enabled, debug output will rarely crash the autosplitter if the scene

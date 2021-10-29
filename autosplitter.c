@@ -244,7 +244,7 @@ void unhooked() {
 }
 
 bool should_start() {
-    return (CURRENT.in_game && !OLD.in_game);
+    return (CURRENT.in_game && CURRENT.stage_count == 1 && CURRENT.fade < 1.f && OLD.fade >= 1.f);
 }
 
 bool should_split() {
@@ -269,8 +269,11 @@ bool should_split() {
 }
 
 /* This logic was modified from the base ASL script
- * should_reset is always called after should_start, so should_start would be
- * called too late to detect the start condition
+ * LSO core does not behave the same as LiveSplit -- it allows the
+ * autosplitter to reset a completed run.
+ * This behaviour is unwanted on completed runs, so we only check
+ * for transitions to non-in_game state before stage 4 as a workaround.
+ * Manually resetting from stage 4 onward is required.
  */
 bool should_reset() {
     return (!CURRENT.in_game && OLD.in_game && OLD.stage_count < 4);
