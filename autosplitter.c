@@ -241,8 +241,6 @@ bool should_start() {
             || str_is_equal(CURRENT.scene_name, "golemplains2")
             || str_is_equal(CURRENT.scene_name, "blackbeach")
             || str_is_equal(CURRENT.scene_name, "blackbeach2")
-        ) && (
-            CURRENT.fade < 1.f && OLD.fade >= 1.f
         )
     );
 }
@@ -272,6 +270,11 @@ bool should_reset() {
 }
 
 bool is_loading(bool last_known) {
+    // Secondary start condition hack
+    if (CURRENT.stage_count == 1 && (CURRENT.fade >= 1.f && OLD.fade > CURRENT.fade)) {
+        timer_set_game_time(0, 0);
+        return true;
+    }
     if (CURRENT.fade > OLD.fade) {
         return true;
     }

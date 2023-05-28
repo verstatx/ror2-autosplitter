@@ -16,6 +16,6 @@ clang --target=wasm32 -nostdlib -Wl,--no-entry -Wl,--allow-undefined \
     -DREMOVE_LOADS \
     -DBAZAAR_SPLIT \
     -DPACKED_STRINGS \
-    -o RoR2-autosplitter.wasm autosplitter.c
+    -o RoR2-autosplitter-fast.wasm autosplitter.c
     #-DDEBUG_OUTPUT \
-    #-DV1_1 -o RoR2-autosplitter-v1_1.wasm autosplitter.c
+    #-DV1_1 -o RoR2-autosplitter-v1_1-fast.wasm autosplitter.c
