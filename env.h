@@ -1,36 +1,38 @@
 #pragma once
+#include <stdarg.h>
 #include <stdint.h>
+#include <stddef.h>
 
-typedef enum PointerType : uint8_t {
-    U8 = 0,
-    U16 = 1,
-    U32 = 2,
-    U64 = 3,
-    I8 = 4,
-    I16 = 5,
-    I32 = 6,
-    I64 = 7,
-    F32 = 8,
-    F64 = 9,
-    String = 10,
-} PointerType;
+typedef size_t usize;
+typedef uint64_t NonZeroU64;
 
-typedef int32_t pointer_path_id;
+typedef uint64_t Address;
+typedef NonZeroU64 NonZeroAddress;
+typedef NonZeroU64 ProcessId;
+typedef enum TimerState : uint32_t {
+    NOT_RUNNING = 0,
+    RUNNING = 1,
+    PAUSED = 2,
+    ENDED = 3,
+} TimerState;
 
-extern void set_process_name(const char*, int32_t);
-extern void set_tick_rate(double);
-extern pointer_path_id push_pointer_path(const char*, int32_t, PointerType);
-extern void push_offset(pointer_path_id, int64_t);
-extern void print_message(const char*, int32_t);
-extern uint8_t get_u8(pointer_path_id, bool);
-extern uint16_t get_u16(pointer_path_id, bool);
-extern uint32_t get_u32(pointer_path_id, bool);
-extern uint64_t get_u64(pointer_path_id, bool);
-extern int8_t get_i8(pointer_path_id, bool);
-extern int16_t get_i16(pointer_path_id, bool);
-extern int32_t get_i32(pointer_path_id, bool);
-extern int64_t get_i64(pointer_path_id, bool);
-extern float get_f32(pointer_path_id, bool);
-extern double get_f64(pointer_path_id, bool);
-//extern char* get_string(pointer_path_id, bool);
+/// NOTE: All strings are assumed to NOT be null-terminated!
+
+extern TimerState timer_get_state();
+extern void timer_start();
+extern void timer_split();
+extern void timer_reset();
+extern void timer_set_variable(const char*, usize, const char*, usize);
+extern void timer_set_game_time(int64_t, int32_t);
+extern void timer_pause_game_time();
+extern void timer_resume_game_time();
+
+extern ProcessId process_attach(const char*, usize); // FIXME -> Option<ProcessId>!!!
+extern void process_detach(ProcessId);
+extern bool process_is_open(ProcessId);
+extern bool process_read(ProcessId, Address, char*, usize);
+extern NonZeroAddress process_get_module_address(ProcessId, const char*, usize); // FIXME -> Option<NonZeroAddress>!!!
+
+extern void runtime_set_tick_rate(double);
+extern void runtime_print_message(const char*, usize);
 

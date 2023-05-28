@@ -1,12 +1,8 @@
-A WIP Risk of Rain 2 Autosplitter/Load Remover for livesplit-core
-adapted from RiskOfRain2.asl.
-
+A WIP Risk of Rain 2 Autosplitter/Load Remover using the livesplit-core
+auto-splitting-v2 API. Adapted from the RiskOfRain2.asl.
 
 Compiles to WebAssembly using clang (see build.sh).
 Compile-time "#define"s (you have to edit build.sh manually):
-
- - '-DREMOVE_LOADS': enabled by default.
-   Enables the load-removal feature.
 
  - '-DBAZAAR_SPLIT': enabled by default.
    Split when exiting bazaar.
@@ -20,9 +16,6 @@ Compile-time "#define"s (you have to edit build.sh manually):
    old scene name, current scene name, old in_game state, current
    in_game state, old stage_count, current stage_count
 
- - '-DPACKED_STRINGS': enabled by default.
-   Changes the way strings are extracted internally. Mostly irrelevant.
-
  - '-DUSE_WASI_SDK': disabled by default.
    Used internally to enable headers included in the WASI SDK. Basically
    useless.
@@ -30,9 +23,12 @@ Compile-time "#define"s (you have to edit build.sh manually):
 
 Current limitations:
 
- - Automatic version detection is not possible.
+ - Automatic version detection is not implemented.
 
- - Some pointer paths differ from the upstream ASL script.
+ - Does not work for game versions past the SotV update.
+
+ - The upstream ASL script now uses a helper library which this version cannot
+   support.
 
  - If enabled, debug output will rarely crash the autosplitter if the scene
    name happens to be corrupt.

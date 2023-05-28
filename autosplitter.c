@@ -7,281 +7,277 @@
 #endif
 
 #include "env.h"
+#include "util.h"
 
 #define SCENE_NAME_LEN 16
-
-#ifndef PACKED_STRINGS
-static pointer_path_id scene_name_ppids[SCENE_NAME_LEN];
-#else
-static pointer_path_id scene_name_ppids[SCENE_NAME_LEN/sizeof(uint64_t)];
-#endif
-static pointer_path_id stage_count_ppid;
-static pointer_path_id in_game_ppid;
-
-#ifdef REMOVE_LOADS
-static pointer_path_id fade_ppid;
-#endif
 
 typedef struct {
     char scene_name[SCENE_NAME_LEN];
     int32_t stage_count;
-    bool in_game;
-#ifdef REMOVE_LOADS
+//    bool in_game;
     float fade;
-#endif
 
-    bool is_initialized;
+    TimerState timer_state;
+    ProcessId process_id;
 } state_t;
 
 static state_t CURRENT = {
-    .is_initialized = false
+    .process_id = 0
 };
 
 static state_t OLD = {
-    .is_initialized = false
+    .process_id = 0
 };
 
-#ifndef PACKED_STRINGS
-// Get string from array of pointer_path_ids of type U8
-void str_from_ppids(pointer_path_id* ppids, char* out, int len, bool is_current) {
-    for (int i = 0; i < len; i++) {
-        out[i] = get_u8(ppids[i], is_current);
-    }
-}
+//const Address in_game_offsets[] = { 0x20DC04 };
+#ifndef V1_1
+const Address scene_name_offsets[] = { 0x15A95D8, 0x28, 0x00, 0x40 };
+const Address fade_offsets[] = { 0x4940B8, 0x10, 0x1D0, 0x8, 0x4E0, 0x1E10, 0xD0, 0x8, 0x60, 0xC };
 #else
-inline void unpack_string(uint64_t packed, char* out, int num) {
-    if (num > sizeof(uint64_t))
-        num = sizeof(uint64_t);
-    for (int i = 0; i < num; i++) {
-        out[i] = (packed >> 8 * i) & 0xFF;
-    }
-}
-
-// Get string from array of pointer_path_ids of type U64
-// len = expected length of string
-void str_from_ppids(pointer_path_id* ppids, char* out, int len, bool is_current) {
-    for (int i = 0; i < len; i+=sizeof(uint64_t)) {
-        unpack_string(get_u64(ppids[i/sizeof(uint64_t)], is_current), &out[i], len - i);
-    }
-}
+const Address scene_name_offsets[] = { 0x15A95D8, 0x48, 0x40 };
+const Address fade_offsets[] = { 0x4940B8, 0x10, 0x1D0, 0x8, 0x4E0, 0x1E88, 0x108, 0xD0, 0x8, 0x60, 0xC };
 #endif
+const Address stage_count_offsets[] = { 0x491DC8, 0x28, 0x50, 0x6B0 };
 
-bool str_is_equal(const char* l, const char* r) {
-    int i = 0;
-    for (; l[i] != '\0' && r[i] != '\0'; i++) {
-        if (l[i] != r[i])
-            return false;
-    }
-    return l[i] == r[i];
+struct {
+    PointerPath scene_name;
+    PointerPath fade;
+    PointerPath stage_count;
+} PPIDs = {
+    .scene_name = {
+        .module_name = "UnityPlayer.dll",
+        .num_offsets = sizeof(scene_name_offsets) / sizeof(Address),
+        .offsets = scene_name_offsets
+
+    },
+    .fade = {
+        .module_name = "mono-2.0-bdwgc.dll",
+        .num_offsets = sizeof(fade_offsets) / sizeof(Address),
+        .offsets = fade_offsets
+    },
+    .stage_count = {
+        .module_name = "mono-2.0-bdwgc.dll",
+        .num_offsets = sizeof(stage_count_offsets) / sizeof(Address),
+        .offsets = stage_count_offsets
+    },
+};
+
+void detach() {
+    process_detach(CURRENT.process_id);
+    CURRENT.process_id = 0;
+    DEBUG_PRINT("Detaching from proccess.");
 }
 
-#ifdef DEBUG_OUTPUT
-void print_scene(const state_t* s) {
-    unsigned int len = 0;
-    while (s->scene_name[len] != '\0') {
-        ++len;
-    }
-
-    print_message(s->scene_name, len);
-    if (len == 0)
-        print_message("WARNING: null scene name", 24); // NOTE: never occured during testing
+void attach() {
+    ProcessId pid = process_attach("Risk of Rain 2.", 15); // "exe" is stripped off for some reason
+    CURRENT.process_id = pid;
 }
 
-// Assumes `out` size >= 2
-void itox(uint8_t i, char* out) {
-    static const char hex[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
-    int high_nibble = (i >> 4) & 0xF;
-    int low_nibble = i & 0xF;
+// Runs once when the script is loaded.
+void init() {
+    static bool is_initialized = false;
 
-    out[0] = hex[high_nibble];
-    out[1] = hex[low_nibble];
-}
-#endif
-
-/* Note: configure cannot access any values from any pointer path.
- * livesplit-core internally runs update_values() only after it has
- * been configured. This makes version detection impossible at runtime until
- * an explicit way is added to the API.
- */
-void configure() {
-    set_process_name("Risk of Rain 2.", 15); // "exe" is stripped off for some reason
-    set_tick_rate(120.f);
-
-    // Risk of Rain 2 - universal memory locations
-
-    // NOTE: some initial offsets are adjusted due to duplicate /proc/pid/maps file entries
-    // livesplit-core uses the last entry, but the ASL script expects the first.
-    in_game_ppid = push_pointer_path("AkSoundEngine.dll", 17, I32);
-    push_offset(in_game_ppid, 0x20DC04 - 0x7000);
-
-    // String not implemented in LSO core
-    //scene_name_ppid = push_pointer_path("UnityPlayer.dll", 15, String);
-
-#ifndef PACKED_STRINGS
-    for (int i = 0; i < SCENE_NAME_LEN; i++) {
-        pointer_path_id scene_name_ppid = push_pointer_path("UnityPlayer.dll", 15, U8);
-        push_offset(scene_name_ppid, 0x15A95D8);
-        push_offset(scene_name_ppid, 0x28);
-        push_offset(scene_name_ppid, 0x00);
-        push_offset(scene_name_ppid, 0x40 + i);
-        scene_name_ppids[i] = scene_name_ppid;
+    if (is_initialized) {
+        return;
     }
-#else
-    for (int i = 0; i < SCENE_NAME_LEN; i+=sizeof(uint64_t)) {
-        pointer_path_id scene_name_ppid = push_pointer_path("UnityPlayer.dll", 15, U64);
-        push_offset(scene_name_ppid, 0x15A95D8);
-        push_offset(scene_name_ppid, 0x28);
-        push_offset(scene_name_ppid, 0x00);
-        push_offset(scene_name_ppid, 0x40 + i);
-        scene_name_ppids[i / sizeof(uint64_t)] = scene_name_ppid;
-    }
-#endif
 
-    // Risk of Rain 2 - version dependent memory locations
-#ifdef REMOVE_LOADS
-    fade_ppid = push_pointer_path("mono-2.0-bdwgc.dll", 18, F32);
-    push_offset(fade_ppid, 0x4940B8 - 0x2AF000);
-    push_offset(fade_ppid, 0x10);
-    push_offset(fade_ppid, 0x1D0);
-    push_offset(fade_ppid, 0x8);
-    push_offset(fade_ppid, 0x4E0);
-# ifndef V1_1
-    push_offset(fade_ppid, 0x1E10);
-# else
-    push_offset(fade_ppid, 0x1E88);
-    push_offset(fade_ppid, 0x108);
-# endif
-    push_offset(fade_ppid, 0xD0);
-    push_offset(fade_ppid, 0x8);
-    push_offset(fade_ppid, 0x60);
-    push_offset(fade_ppid, 0xC);
-#endif
+    runtime_set_tick_rate(120.0);
 
-stage_count_ppid = push_pointer_path("mono-2.0-bdwgc.dll", 18, I32);
-    push_offset(stage_count_ppid, 0x491DC8 - 0x2AF000);
-    push_offset(stage_count_ppid, 0x28);
-    push_offset(stage_count_ppid, 0x50);
-    push_offset(stage_count_ppid, 0x6B0);
+    is_initialized = true;
+    DEBUG_PRINT("Initialized.");
 }
 
-/* Note: we cannot rely on livesplit-core to track the old state properly
- * instead, we cache the old state ourselves but only if CURRENT has been
- * initialized in order to avoid unexpected behaviour due to some assumed
- * initial state. (eg. timer was started while in-game, but we assume a
- * default value of not in game, therefore new != old, hence start a run)
- *
- * livesplit-core constantly unhooks whenever a pointer path is incorrect
- * in doing so, any old state is cleared, so it effectively becomes the same
- * as current.
- */
+bool should_start();
+bool should_split();
+bool should_reset();
+bool is_loading(bool);
+
 void update() {
-    // Cache OLD state
-    if (!CURRENT.is_initialized) {
-        CURRENT.is_initialized = true;
-        OLD.is_initialized = true;
+    static bool was_loading = false;
+    init();
 
-        str_from_ppids(scene_name_ppids, OLD.scene_name, SCENE_NAME_LEN, false);
-        OLD.stage_count = get_i32(stage_count_ppid, false);
-        OLD.in_game = (get_i32(in_game_ppid, false) != 0);
-#ifdef REMOVE_LOADS
-        OLD.fade = get_f32(fade_ppid, false);
-#endif
-    } else {
-        for (int i = 0; i < SCENE_NAME_LEN; i++) {
-            OLD.scene_name[i] = CURRENT.scene_name[i];
-        }
-        OLD.stage_count = CURRENT.stage_count;
-        OLD.in_game = CURRENT.in_game;
-#ifdef REMOVE_LOADS
-        OLD.fade = CURRENT.fade;
-#endif
+    if (!CURRENT.process_id) {
+        attach();
     }
 
-    // Update CURRENT state
-    str_from_ppids(scene_name_ppids, CURRENT.scene_name, SCENE_NAME_LEN, true);
-    CURRENT.stage_count = get_i32(stage_count_ppid, true);
-    CURRENT.in_game = (get_i32(in_game_ppid, true) != 0);
-#ifdef REMOVE_LOADS
-    CURRENT.fade = get_f32(fade_ppid, true);
+    if (CURRENT.process_id) {
+        if (process_is_open(CURRENT.process_id)) {
+#ifdef DEBUG_OUTPUT
+            if (!OLD.process_id || CURRENT.process_id != OLD.process_id) {
+                DEBUG_PRINT("Attached to process.");
+                print_pid(CURRENT.process_id);
+
+                DEBUG_PRINT("Immediate address of module `UnityPlayer.dll`:");
+                NonZeroAddress up_dll = process_get_module_address(CURRENT.process_id, PPIDs.scene_name.module_name, strlen(PPIDs.scene_name.module_name));
+                print_Address(up_dll);
+
+                DEBUG_PRINT("Immediate address of `scene_name` (char* <= [16]):");
+                NonZeroAddress addr_scene_name = try_resolve_pointer_path(CURRENT.process_id, PPIDs.scene_name);
+                print_Address(addr_scene_name);
+
+                DEBUG_PRINT("Immediate scene name:");
+                if (addr_scene_name) {
+                    char sn[SCENE_NAME_LEN] = "";
+                    process_read(CURRENT.process_id, addr_scene_name, sn, SCENE_NAME_LEN);
+                    runtime_print_message(sn, strlen(sn));
+                } else {
+                    DEBUG_PRINT("[unknown]");
+                }
+
+                DEBUG_PRINT("Immediate address of module `mono-2.0-bdwgc.dll`:");
+                NonZeroAddress m20bdwgc_dll = process_get_module_address(CURRENT.process_id, PPIDs.fade.module_name, strlen(PPIDs.fade.module_name));
+                print_Address(m20bdwgc_dll);
+
+                DEBUG_PRINT("Immediate Address of `fade`:");
+                NonZeroAddress addr_fade = try_resolve_pointer_path(CURRENT.process_id, PPIDs.fade);
+                print_Address(addr_fade);
+
+                DEBUG_PRINT("Immediate value of `fade` (f32):");
+                read_f32 fade_raw;
+                process_read(CURRENT.process_id, addr_fade, fade_raw.buf, sizeof(float));
+                print_u64_hex(fade_raw.out_raw);
+
+                DEBUG_PRINT("Immediate Address of `stage_count`:");
+                NonZeroAddress addr_stage_count = try_resolve_pointer_path(CURRENT.process_id, PPIDs.stage_count);
+                print_Address(addr_stage_count);
+
+                DEBUG_PRINT("Immediate value of `stage_count` (i32):");
+                read_i32 stage_count_raw;
+                process_read(CURRENT.process_id, addr_stage_count, stage_count_raw.buf, sizeof(float));
+                print_u64(stage_count_raw.out);
+
+            }
 #endif
+
+            CURRENT.timer_state = timer_get_state();
+
+            NonZeroAddress addr_scene_name = try_resolve_pointer_path(CURRENT.process_id, PPIDs.scene_name);
+            if (addr_scene_name) {
+                process_read(CURRENT.process_id, addr_scene_name, CURRENT.scene_name, SCENE_NAME_LEN);
+            }
+
+            NonZeroAddress addr_fade = try_resolve_pointer_path(CURRENT.process_id, PPIDs.fade);
+            if (addr_fade) {
+                read_f32 raw_fade;
+                if (process_read(CURRENT.process_id, addr_fade, raw_fade.buf, sizeof(float))) {
+                    CURRENT.fade = raw_fade.out;
+                }
+            }
+
+            NonZeroAddress addr_stage_count = try_resolve_pointer_path(CURRENT.process_id, PPIDs.stage_count);
+            if (addr_stage_count) {
+                read_i32 raw_stage_count;
+                if (process_read(CURRENT.process_id, addr_stage_count, raw_stage_count.buf, sizeof(int32_t))) {
+                    CURRENT.stage_count = raw_stage_count.out;
+                }
+            }
+
+            if (should_start()) {
+                DEBUG_PRINT("Timer should start now.");
+                timer_start();
+                was_loading = true;
+            }
+
+            if (should_reset()) {
+                DEBUG_PRINT("Timer should reset now.");
+                timer_reset();
+            }
+
+            if (should_split()) {
+                DEBUG_PRINT("Timer should split now.");
+                timer_split();
+            }
+
+            if (is_loading(was_loading)) {
+                if (!was_loading) {
+                    DEBUG_PRINT("Game is loading.");
+                    was_loading = true;
+                }
+                timer_pause_game_time();
+            } else {
+                if (was_loading) {
+                    DEBUG_PRINT("Game is not loading.");
+                    was_loading = false;
+                }
+                timer_resume_game_time();
+            }
 
 #ifdef DEBUG_OUTPUT
-    // Debug output
-    if (!str_is_equal(CURRENT.scene_name, OLD.scene_name)
-       || CURRENT.in_game != OLD.in_game
-       || CURRENT.stage_count != OLD.stage_count
-       || CURRENT.fade != OLD.fade) {
-        print_scene(&OLD);
-        print_scene(&CURRENT);
+            if (!str_is_equal(CURRENT.scene_name, OLD.scene_name) || CURRENT.stage_count != OLD.stage_count) {
+                DEBUG_PRINT("OLD/CURRENT `scene_name`:");
+                runtime_print_message(OLD.scene_name, strlen(OLD.scene_name));
+                runtime_print_message(CURRENT.scene_name, strlen(CURRENT.scene_name));
 
-        char in_game[4] = "0x";
-        for (int i = 0; i < 1; i++) {
-            itox(((uint32_t)OLD.in_game >> 8*i) & 0xFF, &in_game[2+(2*i)]);
-        }
-        print_message(in_game, 4);
-        for (int i = 0; i < 1; i++) {
-            itox(((uint32_t)CURRENT.in_game >> 8*i) & 0xFF, &in_game[2+(2*i)]);
-        }
-        print_message(in_game, 4);
+                DEBUG_PRINT("OLD/CURRENT `stage_count`:");
+                print_u64(OLD.stage_count);
+                print_u64(CURRENT.stage_count);
 
-        char stage_count[10] = "0x";
-        for (int i = 0; i < 4; i++) {
-            itox(((uint32_t)OLD.stage_count >> 8*i) & 0xFF, &stage_count[2+(2*i)]);
-        }
-        print_message(stage_count, 10);
-        for (int i = 0; i < 4; i++) {
-            itox(((uint32_t)CURRENT.stage_count >> 8*i) & 0xFF, &stage_count[2+(2*i)]);
-        }
-        print_message(stage_count, 10);
-    }
+                DEBUG_PRINT("OLD/CURRENT `fade`:");
+                print_u64_hex(((read_f32)OLD.fade).out_raw);
+                print_u64_hex(((read_f32)CURRENT.fade).out_raw);
+
+                DEBUG_PRINT("");
+            }
 #endif
-}
 
-void hooked() {
-}
+            ///OLD = CURRENT;
+            for (size_t i = 0; i < SCENE_NAME_LEN; ++i) {
+                OLD.scene_name[i] = CURRENT.scene_name[i];
+            }
+            OLD.stage_count = CURRENT.stage_count;
+            OLD.fade = CURRENT.fade;
+            OLD.timer_state = CURRENT.timer_state;
+            OLD.process_id = CURRENT.process_id;
 
-void unhooked() {
+        } else {
+            detach();
+        }
+    }
 }
 
 bool should_start() {
-    return (CURRENT.in_game && CURRENT.stage_count == 1 && CURRENT.fade < 1.f && OLD.fade >= 1.f);
+    return (CURRENT.timer_state == NOT_RUNNING && str_is_equal(OLD.scene_name, "lobby") && (
+               str_is_equal(CURRENT.scene_name, "golemplains")
+            || str_is_equal(CURRENT.scene_name, "golemplains2")
+            || str_is_equal(CURRENT.scene_name, "blackbeach")
+            || str_is_equal(CURRENT.scene_name, "blackbeach2")
+        ) && (
+            CURRENT.fade < 1.f && OLD.fade >= 1.f
+        )
+    );
 }
 
 bool should_split() {
-    if (CURRENT.stage_count > 1 && CURRENT.stage_count == OLD.stage_count + 1) {
+    if (CURRENT.timer_state == RUNNING) {
+        if (CURRENT.stage_count > 1 && CURRENT.stage_count == OLD.stage_count + 1) {
+            return true;
+        }
+#ifdef BAZAAR_SPLIT
+        if (!str_is_equal(CURRENT.scene_name, OLD.scene_name)) {
+            return str_is_equal(OLD.scene_name, "bazaar");
+        }
+#endif
+    }
+
+    return false;
+}
+
+bool should_reset() {
+    return (CURRENT.timer_state == RUNNING && (
+           str_is_equal(CURRENT.scene_name, "lobby")
+        || str_is_equal(CURRENT.scene_name, "title")
+        || str_is_equal(CURRENT.scene_name, "crystalworld")
+        || str_is_equal(CURRENT.scene_name, "eclipseworld")
+    ));
+}
+
+bool is_loading(bool last_known) {
+    if (CURRENT.fade > OLD.fade) {
         return true;
     }
-#ifdef BAZAAR_SPLIT
-    if (!str_is_equal(CURRENT.scene_name, OLD.scene_name)) {
-        return str_is_equal(OLD.scene_name, "bazaar");
+    if (CURRENT.fade < OLD.fade && CURRENT.fade > 0.f) {
+        return false;
     }
-#endif
-
-    return false;
+    return last_known;
 }
 
-/* This logic was modified from the base ASL script
- * LSO core does not behave the same as LiveSplit -- it allows the
- * autosplitter to reset a completed run.
- * This behaviour is unwanted on completed runs, so we only check
- * for transitions to non-in_game state before stage 4 as a workaround.
- * Manually resetting from stage 4 onward is required.
- */
-bool should_reset() {
-    return (!CURRENT.in_game && OLD.in_game && OLD.stage_count < 4);
-}
-
-bool is_loading() {
-#ifdef REMOVE_LOADS
-    return CURRENT.fade >= OLD.fade && CURRENT.fade != 0;
-#else
-    return false;
-#endif
-}
-
-// sets the game time each tick
-// returning NaN makes this ignored
-double game_time() {
-    return NAN;
-    //return 42.f;
-}
