@@ -1,3 +1,9 @@
+## **NOTICE**
+This version of the autosplitter is significantly out-of-date.
+Please use verstatx/ror2-autosplitter-rustasr instead.
+(https://github.com/verstatx/ror2-autosplitter-rustasr)
+
+
 A WIP Risk of Rain 2 Autosplitter/Load Remover using the livesplit-core
 auto-splitting-v2 API. Adapted from the RiskOfRain2.asl.
 
